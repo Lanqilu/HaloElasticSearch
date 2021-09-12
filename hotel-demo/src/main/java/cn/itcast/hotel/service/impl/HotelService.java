@@ -12,10 +12,14 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
+import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.sort.SortBuilders;
+import org.elasticsearch.search.sort.SortOrder;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -44,6 +48,15 @@ public class HotelService extends ServiceImpl<HotelMapper, Hotel> implements IHo
             int page = params.getPage();
             int size = params.getSize();
             request.source().from((page - 1) * size).size(size);
+
+            // 排序
+            String location = params.getLocation();
+            if (location != null && !location.equals("")) {
+                request.source().sort(SortBuilders
+                        .geoDistanceSort("location", new GeoPoint(location))
+                        .order(SortOrder.ASC)
+                        .unit(DistanceUnit.KILOMETERS));
+            }
 
             // 3.发送请求
             SearchResponse response = client.search(request, RequestOptions.DEFAULT);
@@ -98,6 +111,13 @@ public class HotelService extends ServiceImpl<HotelMapper, Hotel> implements IHo
             String json = hit.getSourceAsString();
             // 反序列化
             HotelDoc hotelDoc = JSON.parseObject(json, HotelDoc.class);
+            // 获取排序值 - location
+            Object[] sortValues = hit.getSortValues();
+            if (sortValues.length > 0) {
+                Object sortValue = sortValues[0];
+                hotelDoc.setDistance(sortValue);
+            }
+
             // 放入集合
             hotels.add(hotelDoc);
         }

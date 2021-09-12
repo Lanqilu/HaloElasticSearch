@@ -19,6 +19,7 @@ public class HotelDoc {
     private String pic;
     // 排序时的距离值
     private Object distance;
+    private Boolean isAD;
 
     public HotelDoc(Hotel hotel) {
         this.id = hotel.getId();

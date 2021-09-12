@@ -20,14 +20,18 @@ import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
+import org.elasticsearch.search.fetch.subphase.highlight.HighlightField;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.util.CollectionUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 @Service
 public class HotelService extends ServiceImpl<HotelMapper, Hotel> implements IHotelService {
@@ -43,6 +47,7 @@ public class HotelService extends ServiceImpl<HotelMapper, Hotel> implements IHo
             // 2.准备DSL
             // 2.1.构建 query
             FunctionScoreQueryBuilder query = getQueryBuilder(params);
+            request.source().highlighter(new HighlightBuilder().field("name").requireFieldMatch(false));
             request.source().query(query);
 
             // 2.2.分页
@@ -134,6 +139,18 @@ public class HotelService extends ServiceImpl<HotelMapper, Hotel> implements IHo
             if (sortValues.length > 0) {
                 Object sortValue = sortValues[0];
                 hotelDoc.setDistance(sortValue);
+            }
+
+            // 处理高亮
+            Map<String, HighlightField> highlightFields = hit.getHighlightFields();
+            if (!CollectionUtils.isEmpty(highlightFields)) {
+                // 获取高亮字段结果
+                HighlightField highlightField = highlightFields.get("name");
+                if (highlightField != null) {
+                    // 取出高亮结果数组中的第一个，就是酒店名称
+                    String name = highlightField.getFragments()[0].string();
+                    hotelDoc.setName(name);
+                }
             }
 
             // 放入集合

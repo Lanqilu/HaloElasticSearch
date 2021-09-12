@@ -20,6 +20,9 @@ import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.aggregations.AggregationBuilders;
+import org.elasticsearch.search.aggregations.Aggregations;
+import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightField;
 import org.elasticsearch.search.sort.SortBuilders;
@@ -30,6 +33,7 @@ import org.springframework.util.CollectionUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -38,6 +42,59 @@ public class HotelService extends ServiceImpl<HotelMapper, Hotel> implements IHo
 
     @Autowired
     private RestHighLevelClient client;
+
+    @Override
+    public Map<String, List<String>> getFilters(RequestParams params) {
+        try {
+            // 1. 准备 request
+            SearchRequest request = new SearchRequest("hotel");
+
+            // 2. 准备 DSL
+            // query
+            FunctionScoreQueryBuilder query = getQueryBuilder(params);
+            request.source().highlighter(new HighlightBuilder().field("name").requireFieldMatch(false));
+            request.source().query(query);
+            // 2.1 设置 size = 0
+            request.source().size(0);
+            // 2.2 聚合
+            HashMap<String, String> items = new HashMap<>();
+            items.put("brand", "品牌");
+            items.put("city", "城市");
+            items.put("starName", "星级");
+            for (String item : items.keySet()) {
+                request.source().aggregation(AggregationBuilders
+                        .terms(item + "Agg")
+                        .field(item)
+                        .size(100));
+            }
+            // 3. 发出请求
+            SearchResponse response = null;
+
+            response = client.search(request, RequestOptions.DEFAULT);
+
+
+            // 4. 解析结果
+            // 4.1 获取 aggregations
+            Aggregations aggregations = response.getAggregations();
+
+            HashMap<String, List<String>> itemListHashMap = new HashMap<>();
+
+            for (String item : items.keySet()) {
+                // 4.2 根据名称获取聚合结果
+                Terms brandTerms = aggregations.get(item + "Agg");
+                // 4.3 获取 buckets 并遍历
+                ArrayList<String> itemList = new ArrayList<>();
+                for (Terms.Bucket bucket : brandTerms.getBuckets()) {
+                    // 获取 key
+                    itemList.add(bucket.getKeyAsString());
+                }
+                itemListHashMap.put(item, itemList);
+            }
+            return itemListHashMap;
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
 
     @Override
     public PageResult search(RequestParams params) {

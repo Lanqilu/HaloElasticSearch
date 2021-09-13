@@ -16,6 +16,10 @@ import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightField;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.search.suggest.Suggest;
+import org.elasticsearch.search.suggest.SuggestBuilder;
+import org.elasticsearch.search.suggest.SuggestBuilders;
+import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -140,6 +144,33 @@ public class HotelSearchTest {
         }
     }
 
+    // 自动补全
+    @Test
+    void testSuggest() throws IOException {
+        // 1.准备请求
+        SearchRequest request = new SearchRequest("hotel");
+        // 2.请求参数
+        request.source().suggest(new SuggestBuilder().addSuggestion(
+                "suggestions",
+                SuggestBuilders
+                        .completionSuggestion("suggestion")
+                        .prefix("h")
+                        .skipDuplicates(true)
+                        .size(10)
+        ));
+        // 3.发送请求
+        SearchResponse response = client.search(request, RequestOptions.DEFAULT);
+        // 4.处理结果
+        Suggest suggest = response.getSuggest();
+        // 4.1.根据名称获取补全结果
+        CompletionSuggestion suggestion = suggest.getSuggestion("suggestions");
+        // 4.2.获取options并遍历
+        for (CompletionSuggestion.Entry.Option option : suggestion.getOptions()) {
+            // 4.3.获取一个option中的text，也就是补全的词条
+            String text = option.getText().string();
+            System.out.println(text);
+        }
+    }
 
     @BeforeEach
     void setUp() {
